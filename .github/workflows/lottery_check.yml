@@ -1,0 +1,84 @@
+name: Check Lottery Numbers
+
+on:
+  schedule:
+    # Run at 11:45 PM ET (03:45 UTC next day) every day
+    - cron: '45 3 * * *'
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  check-numbers:
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Create config directory
+      run: |
+        mkdir -p config
+        echo '{
+          "scraper": {
+            "url": "https://www.galottery.com/en-us/games/draw-games/cash-four.html#tab-winningNumbers",
+            "headers": {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            }
+          },
+          "email": {
+            "smtp_server": "smtp.gmail.com",
+            "smtp_port": 587,
+            "use_tls": true
+          },
+          "draw_times": {
+            "midday": "12:29",
+            "evening": "18:59",
+            "night": "23:34"
+          },
+          "data_files": {
+            "tickets": "data/tickets.json",
+            "winning_numbers": "data/winning_numbers.json"
+          }
+        }' > config/config.json
+        
+    - name: Create data directory
+      run: |
+        mkdir -p data
+        echo '[]' > data/tickets.json
+        echo '{}' > data/winning_numbers.json
+        
+    - name: Run lottery checker
+      env:
+        EMAIL_USER: ${{ secrets.EMAIL_USER }}
+        EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+        RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+      run: |
+        python -m src.main
+        
+    - name: Upload logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: lottery-logs
+        path: lottery_check.log
+        retention-days: 7
+        
+    - name: Handle errors
+      if: failure()
+      run: |
+        echo "Error occurred while checking lottery numbers. Please check the logs for details."
+        if [ -f lottery_check.log ]; then
+          echo "=== Last 50 lines of log file ==="
+          tail -n 50 lottery_check.log
+        fi
+        exit 1 
