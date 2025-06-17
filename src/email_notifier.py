@@ -6,8 +6,26 @@ from email.mime.multipart import MIMEMultipart
 from typing import Dict, List, Optional
 import logging
 from datetime import datetime, date
+import re
 
 logger = logging.getLogger(__name__)
+
+EMAIL_PATTERN = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+COMMON_DOMAINS = {
+    'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'aol.com',
+    'icloud.com', 'protonmail.com', 'mail.com', 'live.com', 'msn.com'
+}
+
+def validate_email(email: str) -> bool:
+    if not email or not re.match(EMAIL_PATTERN, email):
+        return False
+    domain = email.split('@')[1].lower()
+    if domain in ['gmial.com', 'gmai.com', 'gmal.com', 'gnail.com',
+                  'yaho.com', 'yahooo.com', 'hotmai.com', 'hotmal.com']:
+        return False
+    if domain not in COMMON_DOMAINS:
+        return False
+    return True
 
 class EmailNotifier:
     """Handles sending email notifications for lottery results."""
@@ -123,8 +141,8 @@ Prize Amount: ${result['prize']:.2f}
                 return False
 
             recipient_email = ticket.get('email')
-            if not recipient_email:
-                logger.error("No recipient email found in ticket")
+            if not validate_email(recipient_email):
+                logger.error(f"Invalid or missing recipient email: {recipient_email} for ticket: {ticket}")
                 return False
 
             if prize_amount > 0:
@@ -157,8 +175,8 @@ Prize Amount: ${result['prize']:.2f}
                 return False
 
             recipient_email = ticket.get('email')
-            if not recipient_email:
-                logger.error("No recipient email found in ticket")
+            if not validate_email(recipient_email):
+                logger.error(f"Invalid or missing recipient email: {recipient_email} for ticket: {ticket}")
                 return False
 
             subject = "⚠️ Your Georgia Cash 4 Ticket is Expiring Soon"
